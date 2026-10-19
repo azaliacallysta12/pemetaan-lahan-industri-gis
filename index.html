@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Pemetaan GIS - Informatika & Geospasial</title>
+    <!-- Leaflet CSS untuk Peta Interaktif -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background-color: #f4f6f9;
+        }
+        header {
+            background-color: #1e293b;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        header h1 {
+            font-size: 1.2rem;
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        #sidebar {
+            width: 320px;
+            background: white;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 1000;
+        }
+        .card {
+            background: #f8fafc;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+        }
+        .card h3 {
+            font-size: 0.95rem;
+            margin-bottom: 8px;
+            color: #334155;
+        }
+        select, button {
+            width: 100%;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+            margin-top: 5px;
+            cursor: pointer;
+        }
+        button {
+            background-color: #2563eb;
+            color: white;
+            font-weight: bold;
+            border: none;
+            transition: 0.2s;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        #map {
+            flex: 1;
+            height: 100%;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 5px;
+            font-size: 0.85rem;
+        }
+        .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>WebGIS Dashboard - Pemetaan Geospasial & Industri</h1>
+        <span>Sistem Informasi Informatika</span>
+    </header>
+
+    <div class="container">
+        <!-- Sidebar Filter Data -->
+        <div id="sidebar">
+            <div class="card">
+                <h3>Filter Sektor Industri / Wilayah</h3>
+                <select id="filterCategory" onchange="filterLocations()">
+                    <option value="all">Semua Sektor</option>
+                    <option value="Pertambangan">Pertambangan & Tambang</option>
+                    <option value="Kehutanan">Kehutanan & AMDAL</option>
+                    <option value="Infrastruktur">Infrastruktur & Energi (PLTA)</option>
+                </select>
+            </div>
+
+            <div class="card">
+                <h3>Keterangan (Legenda Peta)</h3>
+                <div class="legend-item">
+                    <div class="color-dot" style="background: red;"></div>
+                    <span>Pertambangan Batubara</span>
+                </div>
+                <div class="legend-item">
+                    <div class="color-dot" style="background: green;"></div>
+                    <span>Konservasi Hutan / AMDAL</span>
+                </div>
+                <div class="legend-item">
+                    <div class="color-dot" style="background: blue;"></div>
+                    <span>PLTA / Infrastruktur</span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>Keterampilan Terintegrasi</h3>
+                <p style="font-size: 0.8rem; color: #64748b; line-height: 1.4;">
+                    Proyek ini mengombinasikan Pemrograman JavaScript, PostgreSQL/PostGIS (Geodatabase), serta pengolahan data GIS untuk keputusan industri.
+                </p>
+            </div>
+        </div>
+
+        <!-- Wadah Peta Leaflet -->
+        <div id="map"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Inisialisasi Peta Berpusat di Bengkulu / Sumatra
+        const map = L.map('map').setView([-3.7928, 102.2608], 9);
+
+        // Tile Layer OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap'
+        }).addTo(map);
+
+        // Data Sample Titik Geospasial
+        const locations = [
+            { name: "Proyek Tambang Batubara A", category: "Pertambangan", lat: -3.6500, lng: 102.3000, color: "red" },
+            { name: "Kawasan Analisis AMDAL Hutan", category: "Kehutanan", lat: -3.8500, lng: 102.4000, color: "green" },
+            { name: "Pembangkit Listrik (PLTA)", category: "Infrastruktur", lat: -3.5000, lng: 102.1500, color: "blue" },
+            { name: "Surveyor GIS Area B", category: "Pertambangan", lat: -3.9000, lng: 102.1000, color: "red" }
+        ];
+
+        let markers = [];
+
+        // Fungsi Menampilkan Marker Peta
+        function displayMarkers(categoryFilter) {
+            // Hapus marker sebelumnya
+            markers.forEach(m => map.removeLayer(m));
+            markers = [];
+
+            locations.forEach(loc => {
+                if (categoryFilter === 'all' || loc.category === categoryFilter) {
+                    const marker = L.circleMarker([loc.lat, loc.lng], {
+                        color: loc.color,
+                        fillColor: loc.color,
+                        fillOpacity: 0.7,
+                        radius: 10
+                    }).addTo(map);
+
+                    marker.bindPopup(`
+                        <b>${loc.name}</b><br>
+                        Sektor: ${loc.category}<br>
+                        Koordinat: ${loc.lat}, ${loc.lng}
+                    `);
+
+                    markers.push(marker);
+                }
+            });
+        }
+
+        // Fungsi Filter Sektor
+        function filterLocations() {
+            const selected = document.getElementById('filterCategory').value;
+            displayMarkers(selected);
+        }
+
+        // Tampilkan Semua Marker saat Awal Dimuat
+        displayMarkers('all');
+    </script>
+</body>
+</html>
